@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,11 +12,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fastwego/feishu/apis/message"
+
 	"github.com/fastwego/feishu/apis/capabilities/calendar"
+	"github.com/fastwego/feishu/types/event_types"
 
 	"github.com/fastwego/feishu/apis/capabilities/meeting"
-
-	"github.com/fastwego/feishu/types"
 
 	"github.com/fastwego/feishu"
 	"github.com/spf13/viper"
@@ -24,18 +26,27 @@ import (
 )
 
 var App *feishu.App
+var PublicApp *feishu.PublicApp
 
 func init() {
 	// 加载配置文件
 	viper.SetConfigFile(".env")
 	_ = viper.ReadInConfig()
 
-	App = feishu.NewInternalApp(feishu.AppConfig{
-		AppId:     viper.GetString("APPID"),
-		AppSecret: viper.GetString("SECRET"),
-		//VerificationToken: viper.GetString("TOKEN"),
-		//EncryptKey:        viper.GetString("AESKey"),
+	App = feishu.NewApp(feishu.AppConfig{
+		AppId:             viper.GetString("APPID"),
+		AppSecret:         viper.GetString("SECRET"),
+		VerificationToken: viper.GetString("TOKEN"),
+		EncryptKey:        viper.GetString("AESKey"),
 	})
+
+	PublicApp = feishu.NewPublicApp(feishu.AppConfig{
+		AppId:             viper.GetString("APPID"),
+		AppSecret:         viper.GetString("SECRET"),
+		VerificationToken: viper.GetString("TOKEN"),
+		EncryptKey:        viper.GetString("AESKey"),
+	}, "helloworld")
+
 }
 
 func main() {
@@ -49,20 +60,44 @@ func main() {
 		fmt.Println(event, err)
 
 		switch event.(type) {
-		case types.EventChallenge: // url 校验
-			App.Server.Challenge(c.Writer, event.(types.EventChallenge))
-		case types.EventAppTicket: // app ticket
-			err := App.AppTicket.ReceiveAppTicketHandler(App, event.(types.EventAppTicket).Event.AppTicket)
+		case event_types.EventChallenge: // url 校验
+			App.Server.Challenge(c.Writer, event.(event_types.EventChallenge))
+		case event_types.EventAppTicket:
+			err := PublicApp.ReceiveAppTicketHandler(event.(event_types.EventAppTicket).Event.AppTicket)
 			fmt.Println(err)
-		case types.EventMessageText:
-			fmt.Println(event.(types.EventMessageText))
+		case event_types.EventMessageText:
+			userMsg := event.(event_types.EventMessageText)
+			fmt.Println(userMsg)
+
+			replyTextMsg := struct {
+				OpenId  string `json:"open_id"`
+				MsgType string `json:"msg_type"`
+				Content struct {
+					Text string `json:"text"`
+				} `json:"content"`
+			}{
+				OpenId:  userMsg.Event.OpenID,
+				MsgType: "text",
+				Content: struct {
+					Text string `json:"text"`
+				}{Text: userMsg.Event.Text},
+			}
+
+			data, err := json.Marshal(replyTextMsg)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			resp, err := message.Send(App, data)
+			fmt.Println(string(resp), err)
 		}
 
 	})
 
 	router.GET("/api/feishu/demo", func(c *gin.Context) {
 		params := url.Values{}
-		list, err := meeting.BuildingList(App, params)
+		list, err := meeting.BuildingList(PublicApp.App, params)
 		fmt.Println(string(list), err)
 
 		params = url.Values{}
