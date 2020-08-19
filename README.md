@@ -1,6 +1,6 @@
 ## feishu-demo 
 
-A demp project for fastwego/feishu sdk
+A demo project for fastwego/feishu sdk
 
 - checkout project `git clone https://github.com/fastwego/feishu-demo.git`
 - install fastwego/feishu `go get -u github.com/fastwego/feishu`
