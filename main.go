@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,12 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fastwego/feishu/apis/message"
+	"github.com/fastwego/feishu/apis/capabilities/approval"
 
 	"github.com/fastwego/feishu/apis/capabilities/calendar"
-	"github.com/fastwego/feishu/types/event_types"
-
-	"github.com/fastwego/feishu/apis/capabilities/meeting"
+	"github.com/fastwego/feishu/apis/capabilities/meeting_room"
 
 	"github.com/fastwego/feishu"
 	"github.com/spf13/viper"
@@ -54,50 +51,11 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())
 
-	router.POST("/api/feishu/callback", func(c *gin.Context) {
-
-		event, err := App.Server.ParseEvent(c.Request)
-		fmt.Println(event, err)
-
-		switch event.(type) {
-		case event_types.EventChallenge: // url 校验
-			App.Server.Challenge(c.Writer, event.(event_types.EventChallenge))
-		case event_types.EventAppTicket:
-			err := PublicApp.ReceiveAppTicketHandler(event.(event_types.EventAppTicket).Event.AppTicket)
-			fmt.Println(err)
-		case event_types.EventMessageText:
-			userMsg := event.(event_types.EventMessageText)
-			fmt.Println(userMsg)
-
-			replyTextMsg := struct {
-				OpenId  string `json:"open_id"`
-				MsgType string `json:"msg_type"`
-				Content struct {
-					Text string `json:"text"`
-				} `json:"content"`
-			}{
-				OpenId:  userMsg.Event.OpenID,
-				MsgType: "text",
-				Content: struct {
-					Text string `json:"text"`
-				}{Text: userMsg.Event.Text},
-			}
-
-			data, err := json.Marshal(replyTextMsg)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-
-			resp, err := message.Send(App, data)
-			fmt.Println(string(resp), err)
-		}
-
-	})
+	router.POST("/api/feishu/callback", Callback)
 
 	router.GET("/api/feishu/demo", func(c *gin.Context) {
 		params := url.Values{}
-		list, err := meeting.BuildingList(PublicApp.App, params)
+		list, err := meeting_room.BuildingList(PublicApp.App, params)
 		fmt.Println(string(list), err)
 
 		params = url.Values{}
@@ -107,6 +65,16 @@ func main() {
 
 		resp, err = calendar.DeleteCalendarById(App, params)
 		fmt.Println(string(resp), err)
+	})
+
+	router.GET("/api/feishu/upload", Upload)
+
+	router.GET("/api/feishu/upload2", func(c *gin.Context) {
+		params := url.Values{}
+		params.Add("type", "image")
+		resp, err := approval.Upload(App, "hi.jpg", params)
+		fmt.Println(string(resp), err)
+
 	})
 
 	svr := &http.Server{
