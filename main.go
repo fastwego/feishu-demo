@@ -17,9 +17,8 @@ import (
 	"github.com/fastwego/feishu/apis/capabilities/meeting_room"
 
 	"github.com/fastwego/feishu"
-	"github.com/spf13/viper"
-
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
 )
 
 var App *feishu.App
