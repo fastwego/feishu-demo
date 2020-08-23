@@ -15,6 +15,6 @@ A demo project for fastwego/feishu
 - run `feishu-demo` & view `http://localhost/api/feishu/demo`
 - that's all & good luck ;)
 
-### 专项 demo
+### use case demo
 
 - [ding-dong-bot](./ding-dong-bot/README.md)
