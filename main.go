@@ -28,9 +28,8 @@ import (
 	"github.com/faabiosr/cachego/file"
 
 	"github.com/fastwego/feishu"
-	"github.com/spf13/viper"
-
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
 )
 
 var FeishuClient *feishu.Client

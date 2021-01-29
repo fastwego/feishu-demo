@@ -1,6 +1,12 @@
 ## feishu-demo 
 
-A demp project for fastwego/feishu sdk
+A demo project for fastwego/feishu
+
+
+[![powered-by-fastwego](https://img.shields.io/badge/Powered%20By-fastwego-brightgreen)](https://github.com/fastwego)
+
+
+### Install
 
 - checkout project `git clone https://github.com/fastwego/feishu-demo.git`
 - install fastwego/feishu `go get -u github.com/fastwego/feishu`
@@ -12,3 +18,4 @@ A demp project for fastwego/feishu sdk
 ## use case
 
 - [登录&报名 App](./login-app/README.md)
+- [ding-dong-bot](./ding-dong-bot/README.md)
