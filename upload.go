@@ -1,19 +1,68 @@
+// Copyright 2021 FastWeGo
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
+	"mime/multipart"
+	"net/http"
 	"net/url"
+	"os"
 
-	"github.com/fastwego/feishu/apis/message"
+	"github.com/fastwego/feishu"
+
 	"github.com/gin-gonic/gin"
 )
 
 func Upload(c *gin.Context) {
-	params := url.Values{}
-	params.Add("image_type", "message")
-	resp, err := message.ImagePut(App, "hi.jpg", params)
+
+	path := "hi.jpg"
+
+	file, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("image", path)
+	if err != nil {
+		return
+	}
+	_, err = io.Copy(part, file)
+	_ = writer.WriteField("image_type", "message")
+	err = writer.Close()
+	if err != nil {
+		return
+	}
+	request, _ := http.NewRequest(http.MethodPost, feishu.ServerUrl+"/open-apis/image/v4/put/", body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+
+	tenantAccessToken, err := Atm.GetAccessToken()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	resp, err := FeishuClient.Do(request, tenantAccessToken)
+
 	fmt.Println(string(resp), err)
 
 	if err != nil {
@@ -32,8 +81,14 @@ func Upload(c *gin.Context) {
 		return
 	}
 
+	params := url.Values{}
 	params.Add("image_key", image.Data.ImageKey)
-	resp, err = message.ImageGet(App, params)
+	request, err = http.NewRequest(http.MethodGet, feishu.ServerUrl+"/open-apis/image/v4/get?"+params.Encode(), nil)
+
+	resp, err = FeishuClient.Do(request, tenantAccessToken)
+
+	fmt.Println(string(resp), err)
+
 	if err != nil {
 		fmt.Println(err)
 		return

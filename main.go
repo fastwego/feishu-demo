@@ -1,20 +1,31 @@
+// Copyright 2021 FastWeGo
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
-	"github.com/fastwego/feishu/apis/capabilities/approval"
-
-	"github.com/fastwego/feishu/apis/capabilities/calendar"
-	"github.com/fastwego/feishu/apis/capabilities/meeting_room"
+	"github.com/faabiosr/cachego/file"
 
 	"github.com/fastwego/feishu"
 	"github.com/spf13/viper"
@@ -22,27 +33,41 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var App *feishu.App
-var PublicApp *feishu.PublicApp
+var FeishuClient *feishu.Client
+var FeishuConfig map[string]string
+
+var Atm *feishu.DefaultAccessTokenManager
 
 func init() {
+
 	// 加载配置文件
 	viper.SetConfigFile(".env")
 	_ = viper.ReadInConfig()
 
-	App = feishu.NewApp(feishu.AppConfig{
-		AppId:             viper.GetString("APPID"),
-		AppSecret:         viper.GetString("SECRET"),
-		VerificationToken: viper.GetString("TOKEN"),
-		EncryptKey:        viper.GetString("AESKey"),
-	})
+	FeishuConfig = map[string]string{
+		"AppId":     viper.GetString("AppId"),
+		"AppSecret": viper.GetString("AppSecret"),
 
-	PublicApp = feishu.NewPublicApp(feishu.AppConfig{
-		AppId:             viper.GetString("APPID"),
-		AppSecret:         viper.GetString("SECRET"),
-		VerificationToken: viper.GetString("TOKEN"),
-		EncryptKey:        viper.GetString("AESKey"),
-	}, "helloworld")
+		"VerificationToken": viper.GetString("VerificationToken"),
+		"EncryptKey":        viper.GetString("EncryptKey"),
+	}
+
+	// 内部应用 tenant_access_token 管理器
+	Atm = &feishu.DefaultAccessTokenManager{
+		Id:    FeishuConfig["AppId"],
+		Cache: file.New(os.TempDir()),
+		GetRefreshRequestFunc: func() *http.Request {
+			payload := `{
+				"app_id":"` + FeishuConfig["AppId"] + `",
+				"app_secret":"` + FeishuConfig["AppSecret"] + `"
+			}`
+			req, _ := http.NewRequest(http.MethodPost, feishu.ServerUrl+"/open-apis/auth/v3/tenant_access_token/internal/", strings.NewReader(payload))
+
+			return req
+		},
+	}
+
+	FeishuClient = feishu.NewClient()
 
 }
 
@@ -53,29 +78,21 @@ func main() {
 
 	router.POST("/api/feishu/callback", Callback)
 
-	router.GET("/api/feishu/demo", func(c *gin.Context) {
+	router.GET("/open-apis/meeting_room/building/list", func(c *gin.Context) {
+
+		tenantAccessToken, err := Atm.GetAccessToken()
+		if err != nil {
+			log.Println(err)
+			return
+		}
 		params := url.Values{}
-		list, err := meeting_room.BuildingList(PublicApp.App, params)
-		fmt.Println(string(list), err)
-
-		params = url.Values{}
-		params.Add("calendarId", "10086")
-		resp, err := calendar.GetCalendarById(App, params)
-		fmt.Println(string(resp), err)
-
-		resp, err = calendar.DeleteCalendarById(App, params)
-		fmt.Println(string(resp), err)
+		params.Add("page_size", "10")
+		request, _ := http.NewRequest(http.MethodGet, feishu.ServerUrl+"/open-apis/meeting_room/building/list?"+params.Encode(), nil)
+		resp, err := FeishuClient.Do(request, tenantAccessToken)
+		log.Println(string(resp), err)
 	})
 
 	router.GET("/api/feishu/upload", Upload)
-
-	router.GET("/api/feishu/upload2", func(c *gin.Context) {
-		params := url.Values{}
-		params.Add("type", "image")
-		resp, err := approval.Upload(App, "hi.jpg", params)
-		fmt.Println(string(resp), err)
-
-	})
 
 	svr := &http.Server{
 		Addr:    viper.GetString("LISTEN"),
