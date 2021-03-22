@@ -17,5 +17,6 @@ A demo project for fastwego/feishu
 
 ## use case
 
+- [基本接口调用](./main.go)
 - [登录&报名 App](./login-app/README.md)
-- [ding-dong-bot](./ding-dong-bot/README.md)
+- [消息回调 ding-dong-bot](./callback.go)
